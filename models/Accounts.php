@@ -42,4 +42,12 @@ class Accounts extends \yii\db\ActiveRecord
             'login' => 'Login',
         ];
     }
+
+     /**
+     * @return \yii\db\ActiveQueryInterface
+     */
+    public function getReferals()
+    {
+        return $this->hasMany(Users::class, ['partner_id' => 'client_uid']);
+    }
 }

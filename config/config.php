@@ -13,17 +13,18 @@ return [
         ]
     ],
     'components' => [
-        'fileCache' => [
-            'class' => 'yii\caching\FileCache',
-            'cachePath' => '@tifia/console/runtime/cache',
+        'referalStatsCounter' => [
+            'class' => tifia\services\ReferalStatsCounter::class
         ],
         'db' => [
             'class' => 'yii\db\Connection',
             'dsn' => 'mysql:host=142.91.155.196;port=3306;dbname=test6',
             'username' => 'tester',
             'password' => 'Jwsq5YwG0aFcJtaK2xdo',
-            'enableSchemaCache' => true,
-            'schemaCache' => 'fileCache'
-        ]
+            // Duration of schema cache.
+            'schemaCacheDuration' => 3600,
+            // Name of the cache component used to store schema information
+            'schemaCache' => 'cache',
+        ],
     ]
 ];
