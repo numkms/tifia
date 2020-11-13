@@ -7,6 +7,7 @@ use tifia\models\Accounts;
 use tifia\models\Trades;
 use tifia\models\Users;
 use \tifia\helpers\ArrayHelper;
+use yii\helpers\ArrayHelper as BaseArrayHelper;
 
 class ReferalStatsCounter extends Component {
 
@@ -14,7 +15,7 @@ class ReferalStatsCounter extends Component {
     protected $tree = [];
     protected $volumeAndProfitReferalWebSum = [];
     protected $logins = [];
-    
+
     public function count($userId, string $fromDate, string $toDate) : ReferalStatsCounterResult {
         $this->userId = $userId;
         $this->tree = $this->loadTreeByUserId($userId);
@@ -29,39 +30,18 @@ class ReferalStatsCounter extends Component {
         ]);
     }
 
-    protected function formatTreePart($part, $depth): string {
-        $result = "";
-
-        foreach ($part as $key => $value) {
-            $result .= str_repeat("--", $depth) . $key . PHP_EOL;
-            
-            if($value) {
-                $result .= $this->formatTreePart($value, $depth++);
-            }
-        }
-
-        return $result;
-    }
-
-    public function getTreeFormatted(): string {
-        if($this->tree) {
-            return "--" . $this->userId . PHP_EOL . $this->formatTreePart($this->tree, 2, "");
-        } else {
-            throw new yii\base\ErrorException;("Please, run method count fristly");
-        }
-    }
-
-    protected function loadTreeByUserId($userId): array {
-        $childs = [];
-
+    protected function getUserData($userId): array {
         $users = Users::find()->andWhere(['partner_id' => $userId])->with('account')->asArray()->all();
+        
+        if(!$users) return [];
 
-        foreach ($users as $childClient) {
-            $this->logins[] = $childClient['account']['login'];
-            $childs[$childClient['client_uid']] = $this->loadTreeByUserId($childClient['client_uid']);  
-        }   
+        $this->logins = BaseArrayHelper::merge($this->logins, BaseArrayHelper::getColumn($users, 'account.login'));
 
-        return $childs;
+        return BaseArrayHelper::merge($users, $this->getUSerData(BaseArrayHelper::getColumn($users, 'client_uid')));   
+    }
+    
+    protected function loadTreeByUserId($userId): array {
+        return ArrayHelper::arrayToTree($this->getUserData($userId), 'partner_id', 'client_uid');
     }
 
     protected function loadTreeVolumeAndProfitReferalWebSums($fromDate, $toDate) {
@@ -70,7 +50,7 @@ class ReferalStatsCounter extends Component {
             return;
         }
 
-        $this->volumeAndProfitReferalWebSum =  Trades::find()
+        $this->volumeAndProfitReferalWebSum = Trades::find()
         ->select([
             "SUM(volume * coeff_h * coeff_cr) as summaryVolume",
             "SUM(profit) as summaryProfit"
@@ -84,15 +64,37 @@ class ReferalStatsCounter extends Component {
         ->one();
     }
 
-    protected function getTreeDirectReferalsCount(): int {
+    public function getTreeAllReferalsCount(): int {
+        return count($this->logins);
+    }
+
+    public function getTreeDirectReferalsCount() {
         return count($this->tree);
     }
 
-    protected function getTreeAllReferalsCount(): int {
-        return count($this->tree, COUNT_RECURSIVE);
-    }
-
-    protected function getReferalsWebDepth(): int {
+    public function getReferalsWebDepth() {
         return ArrayHelper::arrayDepth($this->tree);
     }
+
+    public function getTreeFormatted(): string {
+        if($this->tree) {
+            return "--" . $this->userId . PHP_EOL . $this->formatTreePart($this->tree, 2, "");
+        } 
+        
+        throw new yii\base\ErrorException;("Please, run method count fristly");
+    }
+
+    protected function formatTreePart($part, $depth): string {
+        $result = "";
+        
+        foreach ($part as $key => $value) {
+            $result .= str_repeat("--", $depth) . $value['client_uid'] . PHP_EOL;            
+            if(isset($value['children'])) {
+                $result .= $this->formatTreePart($value['children'], $depth++);
+            }
+        }
+
+        return $result;
+    }
+    
 }
