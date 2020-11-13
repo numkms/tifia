@@ -5,7 +5,7 @@ namespace tifia\helpers;
 use yii\base\Model;
 
 class ArrayHelper {
-
+    
     public static function arrayDepth(array $array) : int {
         $max_depth = 1;
         foreach ($array as $value) {
@@ -21,7 +21,14 @@ class ArrayHelper {
         return $max_depth;
     }
 
-    static function arrayToTree($flatStructure, $pidKey, $idKey) : ArrayTree { 
+    /*
+        Строим дерево по заданым
+        @param $pId - имя ключа для идентификатора определния родителя ноды
+        @param $idKey - имя ключа для опеределения идентификатора
+        @examople arrayToTree($array, 'parentIdAttribute', 'idAttribute')
+        @see ReferalStatsCounter для примера
+     */
+    static function arrayToTree($flatStructure, $pidKey, $idKey) : array { 
         $parents = [];
         $depth = 0;
         foreach ($flatStructure as $item){
@@ -43,14 +50,6 @@ class ArrayHelper {
         
         $tree = $fnBuilder($parents[array_keys($parents)[0]], $parents, $idKey);
 
-        return new ArrayTree([
-            'tree' => $tree,
-            'depth' => $depth
-        ]);
+        return $tree;
     }
-} 
-
-class ArrayTree extends Model {
-    public $tree;
-    public $depth;
 }
