@@ -7,6 +7,7 @@ use tifia\models\Accounts;
 use tifia\models\Trades;
 use tifia\models\Users;
 use \tifia\helpers\ArrayHelper;
+use yii\helpers\ArrayHelper as BaseArrayHelper;
 
 class ReferalStatsCounter extends Component {
 
@@ -14,10 +15,13 @@ class ReferalStatsCounter extends Component {
     protected $tree = [];
     protected $volumeAndProfitReferalWebSum = [];
     protected $logins = [];
-    
+
     public function count($userId, string $fromDate, string $toDate) : ReferalStatsCounterResult {
         $this->userId = $userId;
+        $start = microtime(true);
         $this->tree = $this->loadTreeByUserId($userId);
+        $end = microtime(true);
+        echo $end - $start . PHP_EOL;
         $this->loadTreeVolumeAndProfitReferalWebSums($fromDate, $toDate);
 
         return new ReferalStatsCounterResult([
@@ -31,12 +35,10 @@ class ReferalStatsCounter extends Component {
 
     protected function formatTreePart($part, $depth): string {
         $result = "";
-
         foreach ($part as $key => $value) {
-            $result .= str_repeat("--", $depth) . $key . PHP_EOL;
-            
-            if($value) {
-                $result .= $this->formatTreePart($value, $depth++);
+            $result .= str_repeat("--", $depth) . $value['client_uid'] . PHP_EOL;            
+            if(isset($value['children'])) {
+                $result .= $this->formatTreePart($value['children'], $depth++);
             }
         }
 
@@ -51,17 +53,19 @@ class ReferalStatsCounter extends Component {
         }
     }
 
-    protected function loadTreeByUserId($userId): array {
-        $childs = [];
-
+    protected function loadUsers($userId) {
         $users = Users::find()->andWhere(['partner_id' => $userId])->with('account')->asArray()->all();
-
-        foreach ($users as $childClient) {
-            $this->logins[] = $childClient['account']['login'];
-            $childs[$childClient['client_uid']] = $this->loadTreeByUserId($childClient['client_uid']);  
-        }   
-
-        return $childs;
+        $this->logins = BaseArrayHelper::merge($this->logins, BaseArrayHelper::getColumn($users, 'account.login'));
+        if(!$users) return [];
+        $subUsers = $this->loadUsers(BaseArrayHelper::getColumn($users, 'client_uid'));
+        $result = BaseArrayHelper::merge($users, $subUsers);
+        return $result;   
+    }
+    
+    protected function loadTreeByUserId($userId): array {
+        $users = $this->loadUsers($userId);
+        $referalsTree = ArrayHelper::arrayToTree($users, 'partner_id', 'client_uid');
+        return $referalsTree->tree;
     }
 
     protected function loadTreeVolumeAndProfitReferalWebSums($fromDate, $toDate) {
@@ -84,15 +88,16 @@ class ReferalStatsCounter extends Component {
         ->one();
     }
 
-    protected function getTreeDirectReferalsCount(): int {
+
+    public function getTreeAllReferalsCount(): int {
+        return count($this->logins);
+    }
+
+    public function getTreeDirectReferalsCount() {
         return count($this->tree);
     }
 
-    protected function getTreeAllReferalsCount(): int {
-        return count($this->tree, COUNT_RECURSIVE);
-    }
-
-    protected function getReferalsWebDepth(): int {
+    public function getReferalsWebDepth() {
         return ArrayHelper::arrayDepth($this->tree);
     }
 }
